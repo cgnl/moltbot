@@ -118,6 +118,58 @@ function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): AgentMessa
   return touched ? out : messages;
 }
 
+/**
+ * Ensure all toolCall blocks have an arguments field.
+ * Google Antigravity API requires tool_use.input (mapped from arguments) to be present,
+ * even if empty. Without this, we get "tool_use.input: Field required" errors.
+ */
+function sanitizeToolCallArguments(messages: AgentMessage[]): AgentMessage[] {
+  let touched = false;
+  const out: AgentMessage[] = [];
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object" || msg.role !== "assistant") {
+      out.push(msg);
+      continue;
+    }
+    const assistant = msg as Extract<AgentMessage, { role: "assistant" }>;
+    if (!Array.isArray(assistant.content)) {
+      out.push(msg);
+      continue;
+    }
+    type AssistantContentBlock = Extract<AgentMessage, { role: "assistant" }>["content"][number];
+    const nextContent: AssistantContentBlock[] = [];
+    let contentChanged = false;
+    for (const block of assistant.content) {
+      if (!block || typeof block !== "object") {
+        nextContent.push(block);
+        continue;
+      }
+      const rec = block as { type?: unknown; arguments?: unknown; input?: unknown };
+      // Check if it's a toolCall/toolUse/functionCall without arguments
+      if (
+        (rec.type === "toolCall" || rec.type === "toolUse" || rec.type === "functionCall") &&
+        rec.arguments === undefined &&
+        rec.input === undefined
+      ) {
+        // Add empty arguments object
+        const nextBlock = {
+          ...(block as unknown as Record<string, unknown>),
+          arguments: {},
+        } as unknown as AssistantContentBlock;
+        nextContent.push(nextBlock);
+        contentChanged = true;
+      } else {
+        nextContent.push(block);
+      }
+    }
+    if (contentChanged) {
+      touched = true;
+    }
+    out.push(contentChanged ? { ...assistant, content: nextContent } : msg);
+  }
+  return touched ? out : messages;
+}
+
 function findUnsupportedSchemaKeywords(schema: unknown, path: string): string[] {
   if (!schema || typeof schema !== "object") return [];
   if (Array.isArray(schema)) {
@@ -338,9 +390,11 @@ export async function sanitizeSessionHistory(params: {
   const sanitizedThinking = policy.normalizeAntigravityThinkingBlocks
     ? sanitizeAntigravityThinkingBlocks(sanitizedImages)
     : sanitizedImages;
+  // Ensure all tool calls have arguments (google-antigravity requires tool_use.input)
+  const sanitizedToolArgs = sanitizeToolCallArguments(sanitizedThinking);
   const repairedTools = policy.repairToolUseResultPairing
-    ? sanitizeToolUseResultPairing(sanitizedThinking)
-    : sanitizedThinking;
+    ? sanitizeToolUseResultPairing(sanitizedToolArgs)
+    : sanitizedToolArgs;
 
   const isOpenAIResponsesApi =
     params.modelApi === "openai-responses" || params.modelApi === "openai-codex-responses";
