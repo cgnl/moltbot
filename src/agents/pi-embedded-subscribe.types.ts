@@ -31,6 +31,8 @@ export type SubscribeEmbeddedPiSessionParams = {
   onAssistantMessageStart?: () => void | Promise<void>;
   onAgentEvent?: (evt: { stream: string; data: Record<string, unknown> }) => void | Promise<void>;
   enforceFinalTag?: boolean;
+  /** Called on any streaming activity - used for stall detection */
+  onActivity?: () => void;
 };
 
 export type { BlockReplyChunking } from "./pi-embedded-block-chunker.js";

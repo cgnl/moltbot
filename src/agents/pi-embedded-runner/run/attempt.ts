@@ -55,6 +55,7 @@ import { resolveDefaultModelForAgent } from "../../model-selection.js";
 
 import { isAbortError } from "../abort.js";
 import { buildEmbeddedExtensionPaths } from "../extensions.js";
+import { createStallDetector, type StallDetector } from "../stall-detection.js";
 import { applyExtraParamsToAgent } from "../extra-params.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
 import {
@@ -594,6 +595,30 @@ export async function runEmbeddedAttempt(
         });
       };
 
+      // Create stall detector for Google Antigravity (which tends to hang on rate limits)
+      const isProbeSession = params.sessionId?.startsWith("probe-") ?? false;
+      const isAntigravity = params.provider === "google-antigravity";
+      let stallDetector: StallDetector | undefined;
+      if (isAntigravity && !isProbeSession) {
+        stallDetector = createStallDetector({
+          provider: params.provider,
+          config: {
+            firstEventTimeoutMs: 15_000, // 15s to get first event
+            idleTimeoutMs: 10_000, // 10s without activity triggers probe
+            probeTimeoutMs: 5_000, // 5s for probe request
+            probeResponsiveThresholdMs: 3_000, // <3s probe = API is responsive
+          },
+          onStallDetected: (reason) => {
+            log.warn(
+              `stall detected, aborting: runId=${params.runId} sessionId=${params.sessionId} reason=${reason}`,
+            );
+            abortRun(true);
+          },
+          // No probe function for now - just use idle detection
+          // TODO: Add API probe when auth token is accessible here
+        });
+      }
+
       const subscription = subscribeEmbeddedPiSession({
         session: activeSession,
         runId: params.runId,
@@ -612,6 +637,7 @@ export async function runEmbeddedAttempt(
         onAssistantMessageStart: params.onAssistantMessageStart,
         onAgentEvent: params.onAgentEvent,
         enforceFinalTag: params.enforceFinalTag,
+        onActivity: stallDetector ? () => stallDetector!.onActivity() : undefined,
       });
 
       const {
@@ -636,7 +662,6 @@ export async function runEmbeddedAttempt(
       setActiveEmbeddedRun(params.sessionId, queueHandle);
 
       let abortWarnTimer: NodeJS.Timeout | undefined;
-      const isProbeSession = params.sessionId?.startsWith("probe-") ?? false;
       const abortTimer = setTimeout(
         () => {
           if (!isProbeSession) {
@@ -834,6 +859,7 @@ export async function runEmbeddedAttempt(
       } finally {
         clearTimeout(abortTimer);
         if (abortWarnTimer) clearTimeout(abortWarnTimer);
+        stallDetector?.dispose();
         unsubscribe();
         clearActiveEmbeddedRun(params.sessionId, queueHandle);
         params.abortSignal?.removeEventListener?.("abort", onAbort);

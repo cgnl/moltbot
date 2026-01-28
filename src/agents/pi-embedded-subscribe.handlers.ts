@@ -21,6 +21,9 @@ import type {
 
 export function createEmbeddedPiSessionEventHandler(ctx: EmbeddedPiSubscribeContext) {
   return (evt: EmbeddedPiSubscribeEvent) => {
+    // Notify stall detector of activity on every event
+    ctx.params.onActivity?.();
+
     switch (evt.type) {
       case "message_start":
         handleMessageStart(ctx, evt as never);
