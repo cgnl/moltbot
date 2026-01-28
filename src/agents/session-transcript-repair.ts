@@ -8,6 +8,11 @@ type ToolCallLike = {
 function extractToolCallsFromAssistant(
   msg: Extract<AgentMessage, { role: "assistant" }>,
 ): ToolCallLike[] {
+  // Don't extract toolCalls from errored assistant turns - they may be
+  // incomplete/corrupt and won't be sent to API, causing orphan tool_results
+  if ((msg as { stopReason?: string }).stopReason === "error") {
+    return [];
+  }
   const content = msg.content;
   if (!Array.isArray(content)) return [];
 

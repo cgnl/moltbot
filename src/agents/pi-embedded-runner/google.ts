@@ -89,16 +89,22 @@ function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): AgentMessa
         contentChanged = true;
         continue;
       }
-      if (rec.thinkingSignature !== candidate) {
-        const nextBlock = {
-          ...(block as unknown as Record<string, unknown>),
-          thinkingSignature: candidate,
-        } as AssistantContentBlock;
-        nextContent.push(nextBlock);
-        contentChanged = true;
-      } else {
-        nextContent.push(block);
-      }
+      // Normalize to 'signature' field (what google-antigravity API expects)
+      // Remove any other signature field variants to avoid confusion
+      const blockRecord = block as unknown as Record<string, unknown>;
+      const {
+        thinkingSignature: _,
+        thought_signature: __,
+        thoughtSignature: ___,
+        signature: ____,
+        ...rest
+      } = blockRecord;
+      const nextBlock = {
+        ...rest,
+        signature: candidate,
+      } as unknown as AssistantContentBlock;
+      nextContent.push(nextBlock);
+      contentChanged = true;
     }
     if (contentChanged) {
       touched = true;

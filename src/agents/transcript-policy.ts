@@ -101,7 +101,9 @@ export function resolveTranscriptPolicy(params: {
     sanitizeMode: isOpenAi ? "images-only" : needsNonImageSanitize ? "full" : "images-only",
     sanitizeToolCallIds: !isOpenAi && sanitizeToolCallIds,
     toolCallIdMode,
-    repairToolUseResultPairing: !isOpenAi && repairToolUseResultPairing,
+    // Always repair tool use/result pairing - orphan results from prior
+    // providers (e.g. Anthropic->OpenAI failover) must be cleaned up
+    repairToolUseResultPairing: true,
     preserveSignatures: isAntigravityClaudeModel,
     sanitizeThoughtSignatures: isOpenAi ? undefined : sanitizeThoughtSignatures,
     normalizeAntigravityThinkingBlocks,
