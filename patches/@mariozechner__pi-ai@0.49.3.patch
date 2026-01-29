@@ -1,8 +1,18 @@
 diff --git a/dist/providers/google-gemini-cli.js b/dist/providers/google-gemini-cli.js
-index 3741764906f41e87eda9259f567b1d5332551a63..41fc6a92fc4c1f6f503b92320248391013badfb0 100644
+index 3741764906f41e87eda9259f567b1d5332551a63..3e8c3245a7551e05a5cac200d8b5e44281cb1f9f 100644
 --- a/dist/providers/google-gemini-cli.js
 +++ b/dist/providers/google-gemini-cli.js
-@@ -22,7 +22,7 @@ const GEMINI_CLI_HEADERS = {
+@@ -9,7 +9,8 @@ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { convertMessages, convertTools, isThinkingPart, mapStopReasonString, mapToolChoice, retainThoughtSignature, } from "./google-shared.js";
+ const DEFAULT_ENDPOINT = "https://cloudcode-pa.googleapis.com";
+ const ANTIGRAVITY_DAILY_ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
+-const ANTIGRAVITY_ENDPOINT_FALLBACKS = [ANTIGRAVITY_DAILY_ENDPOINT, DEFAULT_ENDPOINT];
++// Use prod endpoint first - daily sandbox often returns 404
++const ANTIGRAVITY_ENDPOINT_FALLBACKS = [DEFAULT_ENDPOINT, ANTIGRAVITY_DAILY_ENDPOINT];
+ // Headers for Gemini CLI (prod endpoint)
+ const GEMINI_CLI_HEADERS = {
+     "User-Agent": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+@@ -22,7 +23,7 @@ const GEMINI_CLI_HEADERS = {
  };
  // Headers for Antigravity (sandbox endpoint) - requires specific User-Agent
  const ANTIGRAVITY_HEADERS = {
@@ -11,7 +21,16 @@ index 3741764906f41e87eda9259f567b1d5332551a63..41fc6a92fc4c1f6f503b923202483910
      "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
      "Client-Metadata": JSON.stringify({
          ideType: "IDE_UNSPECIFIED",
-@@ -334,6 +334,10 @@ export const createGoogleGeminiCliProvider = function (params) {
+@@ -218,7 +219,7 @@ function isClaudeThinkingModel(modelId) {
+  * Check if an error is retryable (rate limit, server error, network error, etc.)
+  */
+ function isRetryableError(status, errorText) {
+-    if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
++    if (status === 404 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+         return true;
+     }
+     return /resource.?exhausted|rate.?limit|overloaded|service.?unavailable|other.?side.?closed/i.test(errorText);
+@@ -334,6 +335,10 @@ export const streamGoogleGeminiCli = (model, context, options) => {
                      if (attempt < MAX_RETRIES && isRetryableError(response.status, errorText)) {
                          // Use server-provided delay or exponential backoff
                          const serverDelay = extractRetryDelay(errorText, response);
