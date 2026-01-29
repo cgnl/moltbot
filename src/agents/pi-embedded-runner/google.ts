@@ -144,13 +144,26 @@ function sanitizeToolCallArguments(messages: AgentMessage[]): AgentMessage[] {
         nextContent.push(block);
         continue;
       }
-      const rec = block as { type?: unknown; arguments?: unknown; input?: unknown };
-      // Check if it's a toolCall/toolUse/functionCall without arguments
-      if (
-        (rec.type === "toolCall" || rec.type === "toolUse" || rec.type === "functionCall") &&
-        rec.arguments === undefined &&
-        rec.input === undefined
-      ) {
+      const rec = block as {
+        type?: unknown;
+        arguments?: unknown;
+        input?: unknown;
+        name?: unknown;
+        id?: unknown;
+      };
+      // Check if it's ANY tool-like block without arguments/input
+      // This includes toolCall, toolUse, functionCall, tool_use, and thinking-context tool blocks
+      const isToolBlock =
+        typeof rec.type === "string" &&
+        (rec.type === "toolCall" ||
+          rec.type === "toolUse" ||
+          rec.type === "functionCall" ||
+          rec.type === "tool_use" ||
+          // Also catch blocks that have name/id but no explicit type (thinking-context tools)
+          rec.name !== undefined ||
+          rec.id !== undefined);
+
+      if (isToolBlock && rec.arguments === undefined && rec.input === undefined) {
         // Add empty arguments object
         const nextBlock = {
           ...(block as unknown as Record<string, unknown>),
