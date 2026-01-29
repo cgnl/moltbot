@@ -11,22 +11,14 @@ index 3741764906f41e87eda9259f567b1d5332551a63..41fc6a92fc4c1f6f503b923202483910
      "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
      "Client-Metadata": JSON.stringify({
          ideType: "IDE_UNSPECIFIED",
-@@ -113,6 +113,8 @@ const MAX_RETRIES = 3;
- const BASE_DELAY_MS = 1000;
- const MAX_EMPTY_STREAM_RETRIES = 2;
- const EMPTY_STREAM_BASE_DELAY_MS = 500;
-+// Maximum retry delay to avoid stall detection timeouts (moltbot uses 10s)
-+const MAX_RETRY_DELAY_MS = 3000;
- const CLAUDE_THINKING_BETA_HEADER = "interleaved-thinking-2025-05-14";
- /**
-  * Extract retry delay from Gemini error response (in milliseconds).
-@@ -334,7 +336,8 @@ export const createGoogleGeminiCliProvider = function (params) {
+@@ -334,6 +334,10 @@ export const createGoogleGeminiCliProvider = function (params) {
                      if (attempt < MAX_RETRIES && isRetryableError(response.status, errorText)) {
                          // Use server-provided delay or exponential backoff
                          const serverDelay = extractRetryDelay(errorText, response);
--                        const delayMs = serverDelay ?? BASE_DELAY_MS * 2 ** attempt;
-+                        const baseDelay = serverDelay ?? BASE_DELAY_MS * 2 ** attempt;
-+                        const delayMs = Math.min(baseDelay, MAX_RETRY_DELAY_MS);
++                        // Don't retry 429s - fail fast so caller can failover to next account
++                        if (response.status === 429) {
++                            throw new Error(`Rate limited (429): ${extractErrorMessage(errorText)}`);
++                        }
+                         const delayMs = serverDelay ?? BASE_DELAY_MS * 2 ** attempt;
                          await sleep(delayMs, options?.signal);
                          continue;
-                     }
