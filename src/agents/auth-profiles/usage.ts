@@ -157,6 +157,18 @@ export function resolveProfileUnusableUntilForDisplay(
   return resolveProfileUnusableUntil(stats);
 }
 
+/**
+ * Timeout cooldown threshold: only apply cooldown after this many consecutive timeouts.
+ * Single timeouts are often transient (network hiccups, stall detection false positives).
+ */
+const TIMEOUT_COOLDOWN_THRESHOLD = 2;
+
+/**
+ * Fixed cooldown duration for timeouts (ms). Timeouts use a short fixed cooldown
+ * instead of exponential backoff since they're often transient issues, not real rate limits.
+ */
+const TIMEOUT_COOLDOWN_MS = 30_000; // 30 seconds
+
 function computeNextProfileUsageStats(params: {
   existing: ProfileUsageStats;
   now: number;
@@ -181,7 +193,16 @@ function computeNextProfileUsageStats(params: {
     lastFailureAt: params.now,
   };
 
-  if (params.reason === "billing") {
+  if (params.reason === "timeout") {
+    // Timeouts are often transient (network issues, stall detection false positives).
+    // Only apply a short cooldown after multiple consecutive timeouts.
+    const timeoutCount = failureCounts.timeout ?? 0;
+    if (timeoutCount >= TIMEOUT_COOLDOWN_THRESHOLD) {
+      // Short fixed cooldown (not exponential) for repeated timeouts
+      updatedStats.cooldownUntil = params.now + TIMEOUT_COOLDOWN_MS;
+    }
+    // First timeout(s) below threshold: no cooldown, just rotate to next account
+  } else if (params.reason === "billing") {
     const billingCount = failureCounts.billing ?? 1;
     const backoffMs = calculateAuthProfileBillingDisableMsWithConfig({
       errorCount: billingCount,
@@ -191,6 +212,7 @@ function computeNextProfileUsageStats(params: {
     updatedStats.disabledUntil = params.now + backoffMs;
     updatedStats.disabledReason = "billing";
   } else {
+    // Rate limits, auth errors, format errors, unknown: exponential backoff
     const backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
     updatedStats.cooldownUntil = params.now + backoffMs;
   }
