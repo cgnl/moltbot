@@ -1,5 +1,5 @@
 diff --git a/dist/providers/google-gemini-cli.js b/dist/providers/google-gemini-cli.js
-index 3741764906f41e87eda9259f567b1d5332551a63..3e8c3245a7551e05a5cac200d8b5e44281cb1f9f 100644
+index 3741764906f41e87eda9259f567b1d5332551a63..ee65b64b338a39090bd1851c59493b26f1ba211f 100644
 --- a/dist/providers/google-gemini-cli.js
 +++ b/dist/providers/google-gemini-cli.js
 @@ -9,7 +9,8 @@ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
@@ -41,3 +41,14 @@ index 3741764906f41e87eda9259f567b1d5332551a63..3e8c3245a7551e05a5cac200d8b5e442
                          const delayMs = serverDelay ?? BASE_DELAY_MS * 2 ** attempt;
                          await sleep(delayMs, options?.signal);
                          continue;
+@@ -347,6 +352,10 @@ export const streamGoogleGeminiCli = (model, context, options) => {
+                         if (error.name === "AbortError" || error.message === "Request was aborted") {
+                             throw new Error("Request was aborted");
+                         }
++                        // Don't retry rate limit errors - propagate immediately for failover
++                        if (error.message.startsWith("Rate limited (429)")) {
++                            throw error;
++                        }
+                     }
+                     // Extract detailed error message from fetch errors (Node includes cause)
+                     lastError = error instanceof Error ? error : new Error(String(error));
