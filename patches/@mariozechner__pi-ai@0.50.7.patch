@@ -1,0 +1,45 @@
+diff --git a/dist/providers/google-gemini-cli.js b/dist/providers/google-gemini-cli.js
+index ae067b2e394d255fc3ec80c58a45efb973d839ab..dbbd084a6c8a3f41645d68ed1b24b1c848efe763 100644
+--- a/dist/providers/google-gemini-cli.js
++++ b/dist/providers/google-gemini-cli.js
+@@ -10,7 +10,8 @@ import { convertMessages, convertTools, isThinkingPart, mapStopReasonString, map
+ import { buildBaseOptions, clampReasoning } from "./simple-options.js";
+ const DEFAULT_ENDPOINT = "https://cloudcode-pa.googleapis.com";
+ const ANTIGRAVITY_DAILY_ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
+-const ANTIGRAVITY_ENDPOINT_FALLBACKS = [ANTIGRAVITY_DAILY_ENDPOINT, DEFAULT_ENDPOINT];
++// Use prod endpoint first - daily sandbox often returns 404
++const ANTIGRAVITY_ENDPOINT_FALLBACKS = [DEFAULT_ENDPOINT, ANTIGRAVITY_DAILY_ENDPOINT];
+ // Headers for Gemini CLI (prod endpoint)
+ const GEMINI_CLI_HEADERS = {
+     "User-Agent": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+@@ -219,7 +220,7 @@ function isClaudeThinkingModel(modelId) {
+  * Check if an error is retryable (rate limit, server error, network error, etc.)
+  */
+ function isRetryableError(status, errorText) {
+-    if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
++    if (status === 404 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+         return true;
+     }
+     return /resource.?exhausted|rate.?limit|overloaded|service.?unavailable|other.?side.?closed/i.test(errorText);
+@@ -335,6 +336,10 @@ export const streamGoogleGeminiCli = (model, context, options) => {
+                     if (attempt < MAX_RETRIES && isRetryableError(response.status, errorText)) {
+                         // Use server-provided delay or exponential backoff
+                         const serverDelay = extractRetryDelay(errorText, response);
++                        // Don't retry 429s - fail fast so caller can failover to next account
++                        if (response.status === 429) {
++                            throw new Error(`Rate limited (429): ${extractErrorMessage(errorText)}`);
++                        }
+                         const delayMs = serverDelay ?? BASE_DELAY_MS * 2 ** attempt;
+                         await sleep(delayMs, options?.signal);
+                         continue;
+@@ -348,6 +353,10 @@ export const streamGoogleGeminiCli = (model, context, options) => {
+                         if (error.name === "AbortError" || error.message === "Request was aborted") {
+                             throw new Error("Request was aborted");
+                         }
++                        // Don't retry rate limit errors - propagate immediately for failover
++                        if (error.message.startsWith("Rate limited (429)")) {
++                            throw error;
++                        }
+                     }
+                     // Extract detailed error message from fetch errors (Node includes cause)
+                     lastError = error instanceof Error ? error : new Error(String(error));

@@ -6,6 +6,23 @@
   "openclaw": {
     "extensions": [
       "./index.ts"
-    ]
+    ],
+    "channel": {
+      "id": "whatsapp",
+      "label": "WhatsApp",
+      "selectionLabel": "WhatsApp (QR link)",
+      "detailLabel": "WhatsApp Web",
+      "docsPath": "/channels/whatsapp",
+      "docsLabel": "whatsapp",
+      "blurb": "WhatsApp via Baileys web client.",
+      "aliases": ["wa"],
+      "systemImage": "bubble.left.and.bubble.right",
+      "order": 10
+    },
+    "install": {
+      "npmSpec": "@openclaw/whatsapp",
+      "localPath": "extensions/whatsapp",
+      "defaultChoice": "npm"
+    }
   }
 }

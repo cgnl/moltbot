@@ -22,10 +22,10 @@ import { isSubagentSessionKey } from "../../../routing/session-key.js";
 import { resolveUserPath } from "../../../utils.js";
 import { createCacheTrace } from "../../cache-trace.js";
 import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
-import { resolveMoltbotAgentDir } from "../../agent-paths.js";
+import { resolveOpenClawAgentDir as resolveMoltbotAgentDir } from "../../agent-paths.js";
 import { resolveSessionAgentIds } from "../../agent-scope.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
-import { resolveMoltbotDocsPath } from "../../docs-path.js";
+import { resolveOpenClawDocsPath as resolveMoltbotDocsPath } from "../../docs-path.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import {
   isCloudCodeAssistFormatError,
@@ -38,7 +38,7 @@ import {
   ensurePiCompactionReserveTokens,
   resolveCompactionReserveTokensFloor,
 } from "../../pi-settings.js";
-import { createMoltbotCodingTools } from "../../pi-tools.js";
+import { createOpenClawCodingTools as createMoltbotCodingTools } from "../../pi-tools.js";
 import { resolveSandboxContext } from "../../sandbox.js";
 import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
@@ -455,14 +455,10 @@ export async function runEmbeddedAttempt(
         modelRegistry: params.modelRegistry,
         model: params.model,
         thinkingLevel: mapThinkingLevel(params.thinkLevel),
-        systemPrompt,
         tools: builtInTools,
         customTools: allCustomTools,
         sessionManager,
         settingsManager,
-        skills: [],
-        contextFiles: [],
-        additionalExtensionPaths,
       }));
       if (!session) {
         throw new Error("Embedded agent session missing");
